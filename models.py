@@ -1,7 +1,7 @@
 from __future__ import print_function
 
-from keras.layers import Dense, Merge
-from keras.models import Sequential
+from keras.layers import Dense, Input, concatenate
+from keras.models import Sequential, Model
 from keras.optimizers import RMSprop
 from keras.regularizers import l2
 from objectives import cca_loss
@@ -16,9 +16,13 @@ def create_model(layer_sizes1, layer_sizes2, input_size1, input_size2,
     """
     view1_model = build_mlp_net(layer_sizes1, input_size1, reg_par)
     view2_model = build_mlp_net(layer_sizes2, input_size2, reg_par)
+    input1 = Input(shape=(input_size1,))
+    input2 = Input(shape=(input_size2,))
 
-    model = Sequential()
-    model.add(Merge([view1_model, view2_model], mode='concat'))
+    view1 = view1_model(input1)
+    view2 = view2_model(input2)
+    output = concatenate([view1, view2])
+    model = Model(inputs=[input1, input2], outputs=output)
 
     model_optimizer = RMSprop(lr=learning_rate)
     model.compile(loss=cca_loss(outdim_size, use_all_singular_values), optimizer=model_optimizer)
