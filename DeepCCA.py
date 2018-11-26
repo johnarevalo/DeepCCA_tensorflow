@@ -14,6 +14,7 @@ from utils import load_data, svm_classify
 from linear_cca import linear_cca
 from models import create_model
 import matplotlib.pyplot as plt
+from dataset import MMImdbDataset, report_performance
 
 
 # os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
@@ -149,11 +150,11 @@ if __name__ == '__main__':
     save_to = './new_features.gz'
 
     # the size of the new space learned by the model (number of the new features)
-    outdim_size = 10
+    outdim_size = 100
 
     # size of the input for view 1 and view 2
-    input_shape1 = 784
-    input_shape2 = 784
+    input_shape1 = 300
+    input_shape2 = 4096
 
     # number of layers with nodes in each one
     layer_sizes1 = [1024, 1024, 1024, outdim_size]
@@ -161,7 +162,7 @@ if __name__ == '__main__':
 
     # the parameters for training the network
     learning_rate = 1e-3
-    epoch_num = 50
+    epoch_num = 10
     batch_size = 800
 
     # the regularization parameter of the network
@@ -179,11 +180,27 @@ if __name__ == '__main__':
     # end of parameters section
     ############
 
+    data = {}
+    for subset in ['train', 'dev', 'test']:
+        ds = MMImdbDataset(which_sets=(subset,),
+                           file_or_path='/var/www/html/mmimdb/multimodal_imdb.hdf5',
+                           sources=('features', 'vgg_features', 'genres'))
+        data[subset] = next(ds.create_stream().get_epoch_iterator())
+
+    data1 = ((data['train'][0], data['train'][2]),
+             (data['dev'][0], data['dev'][2]),
+             (data['test'][0], data['test'][2]),
+            )
+    data2 = ((data['train'][1], data['train'][2]),
+             (data['dev'][1], data['dev'][2]),
+             (data['test'][1], data['test'][2]),
+            )
+
     # Each view is stored in a gzip file separately. They will get downloaded the first time the code gets executed.
     # Datasets get stored under the datasets folder of user's Keras folder
     # normally under [Home Folder]/.keras/datasets/
-    data1 = load_data('noisymnist_view1.gz', 'https://www2.cs.uic.edu/~vnoroozi/noisy-mnist/noisymnist_view1.gz')
-    data2 = load_data('noisymnist_view2.gz', 'https://www2.cs.uic.edu/~vnoroozi/noisy-mnist/noisymnist_view2.gz')
+    #data1 = load_data('noisymnist_view1.gz', 'https://www2.cs.uic.edu/~vnoroozi/noisy-mnist/noisymnist_view1.gz')
+    #data2 = load_data('noisymnist_view2.gz', 'https://www2.cs.uic.edu/~vnoroozi/noisy-mnist/noisymnist_view2.gz')
 
     # Building, training, and producing the new features by DCCA
     model = create_model(layer_sizes1, layer_sizes2, input_shape1, input_shape2,
@@ -193,9 +210,16 @@ if __name__ == '__main__':
     new_data = tt_model(model, data1, data2, outdim_size, apply_linear_cca)
 
     # Training and testing of SVM with linear kernel on the view 1 with new features
-    [test_acc, valid_acc] = svm_classify(new_data, C=0.01)
+    [test_acc, valid_acc], [test_p, valid_p], [test_label, valid_label] = svm_classify(new_data, C=0.01, view=1)
     print("Accuracy on view 1 (validation data) is:", valid_acc * 100.0)
     print("Accuracy on view 1 (test data) is:", test_acc * 100.0)
+    report_performance(test_label, test_p, 0.5)
+
+    # Training and testing of SVM with linear kernel on the view 2 with new features
+    [test_acc, valid_acc], [test_p, valid_p], [test_label, valid_label] = svm_classify(new_data, C=0.01, view=2)
+    print("Accuracy on view 2 (validation data) is:", valid_acc * 100.0)
+    print("Accuracy on view 2 (test data) is:", test_acc * 100.0)
+    report_performance(test_label, test_p, 0.5)
 
     # Saving new features in a gzip pickled file specified by save_to
     print('saving new features ...')

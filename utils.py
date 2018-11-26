@@ -2,6 +2,9 @@ from __future__ import print_function
 
 import gzip
 from sklearn import svm
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.neural_network import MLPClassifier
 from sklearn.metrics import accuracy_score
 import numpy as np
 # import theano
@@ -32,25 +35,34 @@ def make_numpy_array(data_xy):
     return data_x, data_y
 
 
-def svm_classify(data, C):
+def svm_classify(data, C, view=1):
     """
     trains a linear SVM on the data
     input C specifies the penalty factor of SVM
     """
-    train_data, _, train_label = data[0]
-    valid_data, _, valid_label = data[1]
-    test_data, _, test_label = data[2]
+    if view == 1:
+        train_data, _, train_label = data[0]
+        valid_data, _, valid_label = data[1]
+        test_data, _, test_label = data[2]
+    elif view==2:
+        _, train_data, train_label = data[0]
+        _, valid_data, valid_label = data[1]
+        _, test_data, test_label = data[2]
+    else:
+        raise ValueError('Invalid View')
+
 
     print('training SVM...')
-    clf = svm.LinearSVC(C=C, dual=False)
-    clf.fit(train_data, train_label.ravel())
+    #clf = LogisticRegression(C=C, multi_class='multinomial')
+    clf = RandomForestClassifier(n_estimators=100)
+    clf.fit(train_data, train_label)
 
-    p = clf.predict(test_data)
-    test_acc = accuracy_score(test_label, p)
-    p = clf.predict(valid_data)
-    valid_acc = accuracy_score(valid_label, p)
+    test_p = clf.predict(test_data)
+    test_acc = accuracy_score(test_label, test_p)
+    valid_p = clf.predict(valid_data)
+    valid_acc = accuracy_score(valid_label, valid_p)
 
-    return [test_acc, valid_acc]
+    return [test_acc, valid_acc], [test_p, valid_p], [test_label, valid_label]
 
 
 def load_pickle(f):
